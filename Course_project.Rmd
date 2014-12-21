@@ -1,0 +1,84 @@
+---
+title: "Machine_Learning_Project"
+author: "Ben MIller"
+date: "December 20, 2014"
+output: html_document
+---
+
+##Introduction:  
+Movement capturing devices like Jawbone Up, Nike FuelBand, and Fitbit allow enthusiasts and researchers to monitor personal activity with unparalled real-time information.  This information can be used to quantify activity. As a reseacher, predicting the type of activity rather than quantifying the activity from the data is an interesting question to answer.  
+In this project, two datasets are available, a training and test set.  These datasets contain data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+The objective of this project is to build a model to predict whether the participant performed the lift correctly or incorrectly.  
+
+##Data:  
+The training data for this project are available from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv  
+The test data are available from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv  
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.  
+
+##Model Building: Predicting with Trees  
+To build the model, 60% of the training data were randomly sampled.  These data were cleaned up to remove non-numerical data, na's and calculated data.  The remaining data were preprocessed by priciple components to identify the most influential components.  The top 4 components were used to build the mode.  The model chosen is Random Forest.  The Random Forest model is an excellent choice for classification prediction.  It is accurate, but can be a bit computationally intensive and slow.  For this experiment, accuracy is paramount.  
+
+###Training:  
+```{r, training_data_model}
+# load packages
+library(caret)
+library(rpart)
+library(rattle)
+library(randomForest)
+# load data directly from url
+training_data <- read.csv("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+
+# partition training data into 60/40 split for training/testing
+inTrain <- createDataPartition(y = training_data$classe, p = 0.6, list=FALSE)
+training_data <- training_data[inTrain,]
+testing_data <- training_data[-inTrain,]
+
+# remove non-numeric columns, summary columns and calculated columns that are full of na's
+training_data_numeric <- training_data[,sapply(training_data,is.numeric)]
+training_data_numeric <- training_data_numeric[,!is.na(training_data_numeric[1,])]
+training_data_numeric <- training_data_numeric[,5:56]
+
+# preprocess with preprocess from the caret package
+preProc <- preProcess(training_data_numeric, method='pca', pcaComp=4)
+
+# fit a model predicting classe
+trainPC <- predict(preProc, training_data_numeric)
+
+# modFit <- train(training_data$classe ~ .,method="rpart",data=trainPC, metric='Accuracy')
+modFit <- randomForest(training_data$classe ~ ., ntree=100, prox=TRUE, data=trainPC)
+```
+
+###Cross Validation on Training Data Partition:  
+Testing is done on the remaining 40% of the training data that wasn't used to generate the model to validate the model.  These data were cleaned and preprocessed in the same manner as the training data.  The accuracy of prediction on was perfect on all 4727 observations, therefore the model for all intents and purposes is validated to be > 99% accurate with 95% confidence.  The out of sample error is expected to be < 1%.  
+```{r, model_testing}
+# remove non-numeric columns and summary columns that are full of na's from testing_data
+testing_data_numeric <- testing_data[,sapply(testing_data,is.numeric)]
+testing_data_numeric <- testing_data_numeric[,!is.na(testing_data_numeric[1,])]
+testing_data_numeric <- testing_data_numeric[,5:56]
+
+# predict outcome on testing data
+testPC <- predict(preProc,newdata=testing_data_numeric)
+pred <- predict(modFit, testPC)
+confusionMatrix(testing_data$classe, pred)
+table(pred, testing_data$classe)
+```
+
+
+###Prediction on 20 unknown obs. :  
+In this section, the 20 unknow observations were classified.
+```{r, predictions}
+# load data directly from url
+unknown_data <- read.csv("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+
+# remove non-numeric columns and summary columns that are full of na's
+unknown_data_numeric <- unknown_data[,sapply(unknown_data,is.numeric)]
+unknown_data_numeric <- unknown_data_numeric[,!is.na(unknown_data_numeric[1,])]
+unknown_data_numeric <- unknown_data_numeric[,5:56]
+
+# predict outcome on testing data
+unknownPC <- predict(preProc,newdata=unknown_data_numeric)
+predict(modFit, unknownPC)
+```
+
+##Conclusions:  
+The ability to predict and classify how a particular exercise was performed using Random Forest statistical learning is quite accurate.  In this case, all 4727 of the observations in the validation test set were predicted correctly.  Of the 20 unknown observations, the accuracy of the prediction is expected to be > 99%, which gives us excellent confidence in assigning the observations to a particular class.
